@@ -13,7 +13,7 @@ library(tidyr)
 source("function/CDST.r")
 
 for (scenario in 1:2) {
-    n_iterations <- 10
+    n_iterations <- 100
 
     mse_STSV <- numeric(n_iterations)
     mse_ST <- numeric(n_iterations)
