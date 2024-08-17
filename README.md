@@ -6,7 +6,7 @@ This repository presents code implementing Covariate Dependent Stacking, as prop
 
 ## System Requirements 🖥
 
-- R Version: 4.3.3
+- R Version: 4.3
 
 ## License 📄
 
