@@ -9,7 +9,7 @@
 #' @param Base_train A matrix or vector representing the base predictors.
 #' @param J An integer, typically the number of predictors.
 #' @param M An integer, typically the number of basis functions.
-#' @param max_iter An integer, the maximum number of iterations (default: 5000).
+#' @param max_iter An integer, the maximum number of iterations (default: 3000).
 #' @param epsilon A small positive number, the convergence threshold (default: 1e-5).
 #'
 #' @return A list containing:
@@ -23,7 +23,7 @@
 #' # Assuming y_train, Pred_mat, Base_train, J, and M are properly defined:
 #' result <- em_algorithm(y_train, Pred_mat, Base_train, J, M)
 #' print(result)
-em_algorithm <- function(y_train, Pred_mat, Base_train, J, M, max_iter, epsilon) {
+em_algorithm <- function(y_train, Pred_mat, Base_train, J, M, max_iter=3000, epsilon=1e-5) {
   # Initialize parameters
   mu <- rep(0, J)
   tau2 <- rep(1, J)

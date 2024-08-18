@@ -1,6 +1,5 @@
 rm(list=ls())
 set.seed(1)
-{
 library(MASS)
 library(MCMCpack)
 library(gam)
@@ -79,15 +78,6 @@ for (j in 1:J){
   fit <- lm(y_train[sub]~EX_train[sub,])
   test_pred[,j] <- as.vector( cbind(1,EX_test)%*%coef(fit) )
 }
-# # Model 1: polynomial regression 
-# sub <- (ID_train[,1]==1)
-# fit <- lm(y_train[sub]~EX_train[sub,])
-# test_pred[,1] <- as.vector( cbind(1,EX_test)%*%coef(fit) )
-
-# # Model 2: polynomial regression 
-# sub <- (ID_train[,2]==1)
-# fit <- lm(y_train[sub]~EX_train[sub,])
-# test_pred[,2] <- as.vector( cbind(1,EX_test)%*%coef(fit) )
 
 
 ## stacking by LOOCV
@@ -105,15 +95,6 @@ for(k in 1:K){
     Pred_mat[sub_ST, j] <- as.vector( cbind(1,t(EX_train[sub_ST,]))%*%coef(fit) )
   }
   
-  # # Model 1: polynomial regression (left region)
-  # sub <- (ID_train[-sub_ST,1]==1)
-  # fit <- lm(y_train[sub]~EX_train[sub,])
-  # Pred_mat[sub_ST, 1] <- as.vector( cbind(1,t(EX_train[sub_ST,]))%*%coef(fit) )
-  
-  # # Model 2: polynomial regression (right region)
-  # sub <- (ID_train[-sub_ST,2]==1)
-  # fit <- lm(y_train[sub]~EX_train[sub,])
-  # Pred_mat[sub_ST, 2] <- as.vector( cbind(1,t(EX_train[sub_ST,]))%*%coef(fit) )
 }
 
 
@@ -129,45 +110,6 @@ for(m in 1:M){
   Base_test[,m] <- exp(-0.5*apply((t(coords_test)-Center[m,])^2, 2, sum))
 }
 
-
-# # EM algorithm
-# max_iter <- 5000
-# epsilon <- 1e-5
-# # initialize parameters
-# mu <- rep(1/J, J)  
-# tau2 <- rep(1/J, J)
-# sigma2 <- 1
-# Psi <- c(mu, tau2, sigma2)
-
-
-# for(iter in 1:max_iter) {
-#   print(iter)
-#   # E-step
-#   Wmat <- do.call(cbind, lapply(1:J, function(j) Base_train * Pred_mat[,j]))
-#   Dmat <- diag(1/tau2)
-#   #S_gamma <- solve(t(Wmat) %*% Wmat / sigma2 + kronecker(Dmat, diag(M)))
-#   L_gamma <- t(Wmat) %*% Wmat / sigma2 + kronecker(Dmat, diag(M))
-#   m_gamma <- solve(L_gamma, t(Wmat) %*% (y_train - as.vector(mu %*% t(Pred_mat))) / sigma2)
-#   #S_gamma %*%  t(Wmat) %*% (y_train - as.vector(mu %*% t(Pred_mat))) / sigma2
-
-#   # M-step
-#   y_star <- y_train - rowSums(Wmat %*% m_gamma)  
-#   mu <- c(solve(t(Pred_mat)%*% Pred_mat) %*% t(Pred_mat) %*% y_star)
-#   sigma2 <- mean((y_star - Pred_mat %*% mu)^2)
-#   tau2 <- (rowSums(matrix(m_gamma,nrow=J)^2)
-#             + sapply(1:J, function(j) block_trace(L_gamma, M, j)))/M
-  
-#   # Check convergence
-#   Psi_new <- c(mu, tau2, sigma2)
-#   if(sum(abs(Psi_new - Psi)) > epsilon) {
-#     mu <- mu
-#     tau2 <- tau2
-#     sigma2 <- sigma2
-#     Psi <- Psi_new
-#   } else {
-#     break
-#   }
-# }
 
 # Ensemble prediction
 result <- em_algorithm(y_train, Pred_mat, Base_train, J, M)
@@ -256,7 +198,3 @@ p4 <- ggplot(df4, aes(x, y, color = value)) +
   theme(text = element_text(family = "Times New Roman"))
 plot(p4)
 ggsave("sim2_model4.png", width = 5, height = 4)
-
-
-}
-

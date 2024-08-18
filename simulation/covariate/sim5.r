@@ -2,7 +2,6 @@ rm(list = ls())
 library(MASS)
 library(MCMCpack)
 library(gam)
-# library(threg)
 library(np)
 library(kernlab)
 library(randomForest)
@@ -160,27 +159,15 @@ for (scenario in 1:2) {
         m_gamma <- result$m_gamma
 
         ## Stacking (constant)
-        best_k <- 0
-        best_mse <- Inf
-        best_pred_ST <- NULL
+        K <- n_train
+        ID <- rep(1:K, rep(n_train / K, K))
 
-        for (K in seq(n_train, n_train, by = 5)) {
-            ID <- rep(1:K, rep(n_train / K, K))
-
-            # in-sample prediction
-            Pred_list <- mclapply(1:K, stack_models, n_train = n_train, XX_train = XX_train, y_train = y_train, p = p, mc.cores = detectCores())
-            Pred_mat <- do.call(rbind, Pred_list)
-
-            alpha <- as.vector(solve(t(Pred_mat) %*% Pred_mat) %*% t(Pred_mat) %*% y_train)
-            pred_ST <- c(alpha %*% t(test_pred))
-            mse <- mean((pred_ST - y_test)^2)
-
-            if (mse < best_mse) {
-                best_k <- K
-                best_mse <- mse
-                best_pred_ST <- pred_ST
-            }
-        }
+        # in-sample prediction
+        Pred_list <- mclapply(1:K, stack_models, n_train = n_train, XX_train = XX_train, y_train = y_train, p = p, mc.cores = detectCores())
+        Pred_mat <- do.call(rbind, Pred_list)
+        alpha <- as.vector(solve(t(Pred_mat) %*% Pred_mat) %*% t(Pred_mat) %*% y_train)
+        pred_ST <- c(alpha %*% t(test_pred))
+        mse <- mean((pred_ST - y_test)^2)
 
         # Ensemble prediction
         stacking_weight <- t(mu + t(Base_test %*% matrix(m_gamma, nrow = M)))
@@ -196,7 +183,7 @@ for (scenario in 1:2) {
 
         # MSE
         mse_STSV[it] <- mean((pred_STSV - y_test)^2)
-        mse_ST[it] <- mean((best_pred_ST - y_test)^2)
+        mse_ST[it] <- mean((pred_ST - y_test)^2)
         mse_SA[it] <- mean((pred_SA - y_test)^2)
         mse_TLR[it] <- mean((pred_TR_lin - y_test)^2)
         mse_SI[it] <- mean((pred_SI - y_test)^2)
@@ -207,7 +194,6 @@ for (scenario in 1:2) {
         mse_M4[it] <- mean((test_pred[, 4] - y)^2)
     }
 
-    # データフレームの作成
     mse_data <- data.frame(
         Method = rep(c("CDST", "ST", "SAIC", "SA", "TR", "SI", "M1", "M2", "M3", "M4"), each = n_iterations),
         MSE = c(mse_STSV, mse_ST, mse_AIC, mse_SA, mse_TLR, mse_SI, mse_M1, mse_M2, mse_M3, mse_M4)
@@ -229,6 +215,5 @@ for (scenario in 1:2) {
         )
 
     print(violin_plot)
-    ggsave(paste0("sim5_", scenario, "_violin.png"), width = 6, height = 6)
+    #ggsave(paste0("sim5_", scenario, "_violin.png"), width = 6, height = 6)
 }
-

@@ -193,7 +193,6 @@ for (scenario in 1:4) {
             Base_test[, m] <- exp(-0.5 * apply((t(coords_test) - Center[m, ])^2, 2, sum))
         }
 
-
         # EM algorithm
         result <- em_algorithm(y_train, Pred_mat, Base_train, J, M)
         mu <- result$mu
@@ -201,23 +200,16 @@ for (scenario in 1:4) {
         stacking_weight <- t(mu + t(Base_test %*% matrix(m_gamma, nrow = M)))
         pred_CDST <- diag(stacking_weight %*% t(test_pred))
 
-        for (K in seq(5, 50, by = 1)) {
-            ID <- rep(1:K, rep(n_train / K, K))
+        K <- n_train
+        ID <- rep(1:K, rep(n_train / K, K))
 
-            # in-sample prediction
-            Pred_list <- mclapply(1:K, stack_models, n_train = n_train, XX_train = XX_train, y_train = y_train, p = p, mc.cores = detectCores())
-            Pred_mat <- do.call(rbind, Pred_list)
+        # in-sample prediction
+        Pred_list <- mclapply(1:K, stack_models, n_train = n_train, XX_train = XX_train, y_train = y_train, p = p, mc.cores = detectCores())
+        Pred_mat <- do.call(rbind, Pred_list)
 
-            alpha <- as.vector(solve(t(Pred_mat) %*% Pred_mat) %*% t(Pred_mat) %*% y_train)
-            pred_ST <- c(alpha %*% t(test_pred))
-            mse <- mean((pred_ST - y_test)^2)
-
-            if (mse < best_mse) {
-                best_k <- K
-                best_mse <- mse
-                best_pred_ST <- pred_ST
-            }
-        }
+        alpha <- as.vector(solve(t(Pred_mat) %*% Pred_mat) %*% t(Pred_mat) %*% y_train)
+        pred_ST <- c(alpha %*% t(test_pred))
+        mse <- mean((pred_ST - y_test)^2)
 
         # MSE
         mse_CDST[it] <- mean((pred_CDST - y_test)^2)
@@ -241,8 +233,6 @@ for (scenario in 1:4) {
         cat("M4: ", mean(mse_M4), "\n")
     }
 
-
-
     mse_data <- data.frame(
         Method = rep(c("CDST", "ST", "SA", "SAIC", "M1", "M2", "M3", "M4"), each = n_iterations),
         MSE = c(mse_CDST, mse_ST, mse_SA, mse_AIC, mse_M1, mse_M2, mse_M3, mse_M4)
@@ -262,8 +252,7 @@ for (scenario in 1:4) {
             text = element_text(size = 14, family = "Times New Roman")
         )
     print(violin_plot)
-    ggsave(paste0("sim4_", scenario, "_violin.png"), width = 7.5, height = 4)
-
+    #ggsave(paste0("sim4_", scenario, "_violin.png"), width = 7.5, height = 4)
 
     df <- data.frame(
         x = coords_test[, 1], y = coords_test[, 2],
@@ -279,5 +268,5 @@ for (scenario in 1:4) {
         theme(text = element_text(family = "Times New Roman")) +
         facet_wrap(~M, ncol = 2)
     plot(p)
-    ggsave(paste0("sim4_", scenario, "_weights.png"), width = 6, height = 6)
+    #ggsave(paste0("sim4_", scenario, "_weights.png"), width = 6, height = 6)
 }
