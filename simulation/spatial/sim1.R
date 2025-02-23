@@ -89,7 +89,7 @@ for(k in 1:K){
 }
 
 M <- 10
-Center <- kmeans(rbind(coords_train, coords_test), M)$center   # testデータは入れなくてもOK
+Center <- kmeans(rbind(coords_train, coords_test), M)$center
 Base_train <- matrix(NA, n_train, M)
 Base_test <- matrix(NA, n_test, M)
 for(m in 1:M){
@@ -107,24 +107,38 @@ mean((yhat_final-y_test)^2)
 # simple average
 mean((rowMeans(test_pred) - y_test)^2)
 
-# visualization
-df1 <- data.frame(x = coords_test[,1], y = coords_test[,2], value = stacking_weight[,1]) 
-p1 <- ggplot(df1, aes(x, y, color = value)) +
-  geom_point(size = 2) +
-  scale_color_viridis(option = "H", limits = range(stacking_weight[,1])) +
-  labs(title = "", x = "Longitude", y = "Latitude") +
-  theme_minimal() +
-  theme(text = element_text(family = "Times New Roman"))
-plot(p1)
-ggsave("sim1_model1.png", width = 5, height = 4)
+# # visualization
+# df1 <- data.frame(x = coords_test[,1], y = coords_test[,2], value = stacking_weight[,1]) 
+# p1 <- ggplot(df1, aes(x, y, color = value)) +
+#   geom_point(size = 2) +
+#   scale_color_viridis(option = "H", limits = range(stacking_weight[,1])) +
+#   labs(title = "", 
+#        x = expression(atop(italic(X[1]), italic(w[1]))),
+#        y = expression(atop(italic(X[2])))) +
+#   theme_minimal() +
+#   theme(text = element_text(family = "Times New Roman"))
+# plot(p1)
+# ggsave("sim1_model1.png", width = 5, height = 4)
 
-df2 <- data.frame(x = coords_test[,1], y = coords_test[,2], value = stacking_weight[,2]) 
-p2 <- ggplot(df2, aes(x, y, color = value)) +
-  geom_point(size = 2) +
-  scale_color_viridis(option = "H", limits = range(stacking_weight[,2])) +
-  labs(title = "", x = "Longitude", y = "Latitude") +
-  theme_minimal() +
-  theme(text = element_text(family = "Times New Roman"))
-plot(p2)
-ggsave("sim1_model2.png", width = 5, height = 4)
+# df2 <- data.frame(x = coords_test[,1], y = coords_test[,2], value = stacking_weight[,2]) 
+# p2 <- ggplot(df2, aes(x, y, color = value)) +
+#   geom_point(size = 2) +
+#   scale_color_viridis(option = "H", limits = range(stacking_weight[,2])) +
+#   labs(title = "", 
+#        x = expression(atop(italic(X[1]), italic(w[2]))),
+#        y = expression(atop(italic(X[2])))) +
+#   theme_minimal() +
+#   theme(text = element_text(family = "Times New Roman"))
+# plot(p2)
+# ggsave("sim1_model2.png", width = 5, height = 4)
 
+
+
+# library(cowplot)
+# library(grid) 
+
+# p1 <- p1 + theme(plot.margin = unit(c(0, 0, 0, 0), "cm"))
+# p2 <- p2 + theme(plot.margin = unit(c(0, 0, 0, 0), "cm"))
+# combined_plot <- plot_grid(p1, p2, ncol = 2, align = "hv")
+
+# ggsave("combined.pdf", plot = combined_plot, width = 10, height = 4, device = cairo_pdf)

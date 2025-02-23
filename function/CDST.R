@@ -23,7 +23,7 @@
 #' # Assuming y_train, Pred_mat, Base_train, J, and M are properly defined:
 #' result <- em_algorithm(y_train, Pred_mat, Base_train, J, M)
 #' print(result)
-em_algorithm <- function(y_train, Pred_mat, Base_train, J, M, max_iter=3000, epsilon=1e-5) {
+em_algorithm <- function(y_train, Pred_mat, Base_train, J, M, max_iter=5000, epsilon=1e-7) {
   # Initialize parameters
   mu <- rep(0, J)
   tau2 <- rep(1, J)

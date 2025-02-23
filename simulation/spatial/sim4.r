@@ -10,6 +10,7 @@ library(spatialreg)
 library(RandomForestsGLS)
 library(viridis)
 library(tidyr)
+library(gamFactory)
 source("function/CDST.r")
 
 
@@ -17,7 +18,7 @@ for (scenario in 1:4) {
     n_iterations <- 100
     p <- 5
 
-    mse_CDST <- mse_ST <- mse_SA <- mse_AIC <- mse_BIC <- mse_M1 <- mse_M2 <- mse_M3 <- mse_M4 <- numeric(n_iterations)
+    mse_CDST <- mse_ST <- mse_SA <- mse_AIC <- mse_M1 <- mse_M2 <- mse_M3 <- mse_M4 <- numeric(n_iterations)
 
     for (it in 1:n_iterations) {
         print(it)
@@ -149,18 +150,15 @@ for (scenario in 1:4) {
             Pred_mat[sub, 4] <- gwr.predict(y_train[-sub] ~ ., sp_train, sp_test, bw = bw, kernel = "gaussian")$SDF$prediction
         }
 
-        ## AIC & BIC for model selection
-        ## Calculate AIC and BIC for each model
+        ## AIC for model selection
+        ## Calculate AIC for each model
         AIC_values <- c(AIC(fit3), NA, AIC(sar_model), NA)
-        BIC_values <- c(BIC(fit3), NA, BIC(sar_model), NA)
 
-        ## Calculate model weights based on AIC and BIC
+        ## Calculate model weights based on AIC
         AIC_weights <- exp(-0.5 * (AIC_values)) / sum(exp(-0.5 * (AIC_values)), na.rm = TRUE)
-        BIC_weights <- exp(-0.5 * (BIC_values)) / sum(exp(-0.5 * (BIC_values)), na.rm = TRUE)
 
-        ## Model averaging using AIC and BIC weights
+        ## Model averaging using AIC weights
         pred_AIC <- colSums(t(test_pred) * AIC_weights, na.rm = TRUE)
-        pred_BIC <- colSums(t(test_pred) * BIC_weights, na.rm = TRUE)
 
 
         # basis function
@@ -209,35 +207,60 @@ for (scenario in 1:4) {
 
         alpha <- as.vector(solve(t(Pred_mat) %*% Pred_mat) %*% t(Pred_mat) %*% y_train)
         pred_ST <- c(alpha %*% t(test_pred))
-        mse <- mean((pred_ST - y_test)^2)
+
+
+        # Probabilistic Stacking (PS)
+        res <- y_train - Pred_mat
+        sds <- apply(res, 2, sd)
+        logP_train <- sapply(1:J, function(ii) dnorm(res[ , ii], 0, sd = sds[ii], log = TRUE))
+        data_add_train <- data.frame(y = y_train,
+                                 x1 = coords_train[,1],
+                                 x2 = coords_train[,2],
+                                 pred1 = Pred_mat[ , 1],
+                                 pred2 = Pred_mat[ , 2],
+                                 pred3 = Pred_mat[ , 3],
+                                 pred4 = Pred_mat[ , 4])
+        data_add_test <- data.frame(y = y_test,
+                                x1 = coords_test[,1],
+                                x2 = coords_test[,2],
+                                pred1 = test_pred[ , 1],
+                                pred2 = test_pred[ , 2],
+                                pred3 = test_pred[ , 3],
+                                pred4 = test_pred[ , 4])
+        fit_PS <- gam(list(y ~ s(x1, x2, k = 10),
+                       ~ s(x1, x2, k = 10),
+                       ~ s(x1, x2, k = 10)
+        ), data = data_add_train,
+        family = fam_stackProb(logP = logP_train))
+        PS_weights <- predict(fit_PS, newdata = data_add_test, type = "response")
+        pred_PS <- drop(rowSums(test_pred * PS_weights))
+        
+        # CDST by GAM
+        fit_BYGAM <- gam(y ~ s(x1, x2, by = pred1) +
+                       s(x1, x2, by = pred2) +
+                       s(x1, x2, by = pred3) +
+                       s(x1, x2, by = pred4),
+                     data = data_add_train, method = "REML")
+        pred_BYGAM <- predict(fit_BYGAM, newdata = data_add_test, type = "response")
 
         # MSE
         mse_CDST[it] <- mean((pred_CDST - y_test)^2)
         mse_ST[it] <- mean((pred_ST - y_test)^2)
         mse_AIC[it] <- mean((pred_AIC - y_test)^2)
-        mse_BIC[it] <- mean((pred_BIC - y_test)^2)
         mse_SA[it] <- mean((pred_SA - y_test)^2)
+        mse_PS[it]     <- mean((pred_PS - y_test)^2)
+        mse_BYGAM[it]  <- mean((pred_BYGAM - y_test)^2)
         mse_M1[it] <- mean((test_pred[, 1] - y_test)^2)
         mse_M2[it] <- mean((test_pred[, 2] - y_test)^2)
         mse_M3[it] <- mean((test_pred[, 3] - y_test)^2)
         mse_M4[it] <- mean((test_pred[, 4] - y_test)^2)
-
-        cat("CDST: ", mean(mse_CDST), "\n")
-        cat("ST: ", mean(mse_ST), "\n")
-        cat("SA: ", mean(mse_SA), "\n")
-        cat("AIC: ", mean(mse_AIC), "\n")
-        cat("BIC: ", mean(mse_BIC), "\n")
-        cat("M1: ", mean(mse_M1), "\n")
-        cat("M2: ", mean(mse_M2), "\n")
-        cat("M3: ", mean(mse_M3), "\n")
-        cat("M4: ", mean(mse_M4), "\n")
     }
 
     mse_data <- data.frame(
-        Method = rep(c("CDST", "ST", "SA", "SAIC", "M1", "M2", "M3", "M4"), each = n_iterations),
-        MSE = c(mse_CDST, mse_ST, mse_SA, mse_AIC, mse_M1, mse_M2, mse_M3, mse_M4)
+        Method = rep(c("CDSTE", "CDSTG","ST", "SA", "SAIC", "PS", "M1", "M2", "M3", "M4"), each = n_iterations),
+        MSE = c(mse_CDST, mse_BYGAM, mse_ST, mse_SA, mse_AIC, mse_PS,mse_M1, mse_M2, mse_M3, mse_M4)
     )
-    mse_data$Method <- factor(mse_data$Method, levels = c("CDST", "ST", "SAIC", "SA", "M1", "M2", "M3", "M4"))
+    mse_data$Method <- factor(mse_data$Method, levels = c("CDSTE", "CDSTG","ST", "SA", "SAIC", "PS", "M1", "M2", "M3", "M4"))
 
     violin_plot <- ggplot(mse_data, aes(x = Method, y = MSE, fill = Method)) +
         geom_violin(trim = FALSE, alpha = 0.7) +
@@ -253,20 +276,4 @@ for (scenario in 1:4) {
         )
     print(violin_plot)
     #ggsave(paste0("sim4_", scenario, "_violin.png"), width = 7.5, height = 4)
-
-    df <- data.frame(
-        x = coords_test[, 1], y = coords_test[, 2],
-        M1 = stacking_weight[, 1], M2 = stacking_weight[, 2],
-        M3 = stacking_weight[, 3], M4 = stacking_weight[, 4]
-    )
-    df_long <- pivot_longer(df, cols = starts_with("M"), names_to = "M", values_to = "weight")
-    p <- ggplot(df_long, aes(x, y, color = weight)) +
-        geom_point(size = 2) +
-        scale_color_viridis(option = "H", limits = range(stacking_weight)) +
-        labs(x = "Longitude", y = "Latitude", color = "Weight") +
-        theme_minimal() +
-        theme(text = element_text(family = "Times New Roman")) +
-        facet_wrap(~M, ncol = 2)
-    plot(p)
-    #ggsave(paste0("sim4_", scenario, "_weights.png"), width = 6, height = 6)
 }

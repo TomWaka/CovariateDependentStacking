@@ -9,24 +9,15 @@ library(parallel)
 library(ggplot2)
 library(viridis)
 library(tidyr)
+library(gamFactory)
 source("function/CDST.r")
 
 for (scenario in 1:2) {
     n_iterations <- 100
 
-    mse_STSV <- numeric(n_iterations)
-    mse_ST <- numeric(n_iterations)
-    mse_SA <- numeric(n_iterations)
-    mse_TLR <- numeric(n_iterations)
-    mse_SI <- numeric(n_iterations)
-    mse_AIC <- numeric(n_iterations)
-    mse_M1 <- numeric(n_iterations)
-    mse_M2 <- numeric(n_iterations)
-    mse_M3 <- numeric(n_iterations)
-    mse_M4 <- numeric(n_iterations)
+    mse_STSV <- mse_ST <- mse_SA <- mse_TLR <- mse_SI <- mse_AIC <- mse_PS <- mse_BYGAM <- mse_M1 <- mse_M2 <- mse_M3 <- mse_M4 <- numeric(n_iterations)
 
     for (it in 1:n_iterations) {
-        print(it)
         set.seed(it)
 
         ## settings
@@ -51,8 +42,8 @@ for (scenario in 1:2) {
 
         # data generation
         if (scenario == 1) {
-            M1 <- 2 * (x1 + x2)
-            M2 <- -x1 + 4 * x2^2
+            M1 <- 2 * (x1 + x2) + x3
+            M2 <- -x1 + 4 * x2^2 + x4
             ID1 <- ifelse(xs[, 1] < 0, 1, 0)
             ID2 <- ifelse(xs[, 1] > 0, 1, 0)
             Mu <- ID1 * M1 + ID2 * M2
@@ -158,6 +149,27 @@ for (scenario in 1:2) {
         mu <- result$mu
         m_gamma <- result$m_gamma
 
+        kk <- 10
+        res <- y_train - Pred_mat
+        sds <- apply(res, 2, sd)
+        logP_train <- sapply(1:4, function(ii) dnorm(res[ , ii], 0, sd = sds[ii], log = TRUE))
+        data_add_train <- data.frame(y = y_train, x = xs_train, pred1 = Pred_mat[ , 1], pred2 = Pred_mat[ , 2],
+                                 pred3 = Pred_mat[ , 3], pred4 = Pred_mat[ , 4])
+        data_add_test <- data.frame(y = y_test, x = xs_test, pred1 = test_pred[ , 1], pred2 = test_pred[ , 2],
+                                pred3 = test_pred[ , 3], pred4 = test_pred[ , 4] )
+        # Probabilistic Stacking
+        fit_PS <- gam(list(y ~ s(x.1, x.2, k = kk),
+                       ~ s(x.1, x.2, k = kk),
+                       ~ s(x.1, x.2, k = kk)
+        ), data = data_add_train,
+        family = fam_stackProb(logP = logP_train))
+        PS_weights <- predict(fit_PS, newdata = data_add_test, type = "response")
+        pred_PS <- drop(rowSums(test_pred * PS_weights))
+        # Stacking using GAM
+        fit_BYGAM <- gam(y ~ s(x.1, x.2, by = pred1) + s(x.1, x.2, by = pred2) + s(x.1, x.2, by = pred3) +
+                       s(x.1, x.2, by = pred4), data = data_add_train, method = "REML")
+        pred_BYGAM <- predict(fit_BYGAM, newdata = data_add_test, type = "response")
+
         ## Stacking (constant)
         K <- n_train
         ID <- rep(1:K, rep(n_train / K, K))
@@ -167,7 +179,6 @@ for (scenario in 1:2) {
         Pred_mat <- do.call(rbind, Pred_list)
         alpha <- as.vector(solve(t(Pred_mat) %*% Pred_mat) %*% t(Pred_mat) %*% y_train)
         pred_ST <- c(alpha %*% t(test_pred))
-        mse <- mean((pred_ST - y_test)^2)
 
         # Ensemble prediction
         stacking_weight <- t(mu + t(Base_test %*% matrix(m_gamma, nrow = M)))
@@ -187,6 +198,8 @@ for (scenario in 1:2) {
         mse_SA[it] <- mean((pred_SA - y_test)^2)
         mse_TLR[it] <- mean((pred_TR_lin - y_test)^2)
         mse_SI[it] <- mean((pred_SI - y_test)^2)
+        mse_PS[it] <- mean((pred_PS - y_test)^2)
+        mse_BYGAM[it] <- mean((pred_BYGAM - y_test)^2)
         mse_AIC[it] <- mean((pred_AIC - y_test)^2)
         mse_M1[it] <- mean((test_pred[, 1] - y)^2)
         mse_M2[it] <- mean((test_pred[, 2] - y)^2)
@@ -195,11 +208,14 @@ for (scenario in 1:2) {
     }
 
     mse_data <- data.frame(
-        Method = rep(c("CDST", "ST", "SAIC", "SA", "TR", "SI", "M1", "M2", "M3", "M4"), each = n_iterations),
-        MSE = c(mse_STSV, mse_ST, mse_AIC, mse_SA, mse_TLR, mse_SI, mse_M1, mse_M2, mse_M3, mse_M4)
+        Method = rep(c("CDSTE", "CDSTG", "ST", "SAIC", "PS", "SA",
+                   "TR", "SI", "M1", "M2", "M3", "M4"), each = n_iterations),
+        MSE = c(mse_STSV, mse_BYGAM, mse_ST, mse_AIC, mse_PS,
+            mse_SA, mse_TLR, mse_SI, mse_M1, mse_M2, mse_M3, mse_M4)
     )
 
-    mse_data$Method <- factor(mse_data$Method, levels = c("CDST", "ST", "SAIC", "SA", "TR", "SI", "M1", "M2", "M3", "M4"))
+    mse_data$Method <- factor(mse_data$Method, levels = c("CDSTE", "CDSTG", "ST",
+                                                        "SAIC",  "PS", "SA", "TR", "SI", "M1", "M2", "M3", "M4"))
 
     violin_plot <- ggplot(mse_data, aes(x = Method, y = MSE, fill = Method)) +
         geom_violin(trim = FALSE, alpha = 0.7) +
@@ -213,7 +229,4 @@ for (scenario in 1:2) {
             legend.position = "none",
             text = element_text(size = 14, family = "Times New Roman")
         )
-
-    print(violin_plot)
-    #ggsave(paste0("sim5_", scenario, "_violin.png"), width = 6, height = 6)
 }
